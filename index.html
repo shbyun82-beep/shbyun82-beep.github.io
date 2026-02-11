@@ -1,193 +1,99 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>현장 측정 입력</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#ffffff"/>
-<style>
-body{font-family:system-ui;margin:0;padding:16px;background:#f4f6f9}
-.card{background:#fff;border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-input,select,textarea,button{width:100%;padding:12px;font-size:18px;border-radius:12px;border:1px solid #ddd;box-sizing:border-box}
-button{background:#111827;color:#fff;border:none;font-weight:700}
-button.secondary{background:#e5e7eb;color:#111827}
-.row{display:flex;gap:8px}
-.row>*{flex:1}
-.list-item{padding:10px;border-bottom:1px solid #eee;cursor:pointer}
-.list-item:hover{background:#f3f4f6}
-.badge{display:inline-block;padding:4px 8px;background:#eef2ff;color:#3730a3;border-radius:999px;font-size:12px;font-weight:700}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:8px 14px;border-radius:999px;opacity:0;transition:.2s}
-.toast.show{opacity:1}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>현장 측정 데이터 입력</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; padding-bottom: 50px; }
+        .container { max-width: 500px; }
+        .card { margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .history-item { font-size: 0.9rem; border-bottom: 1px solid #ddd; padding: 10px 0; }
+    </style>
 </head>
 <body>
+<div class="container">
+    <div class="card p-4">
+        <h4 class="mb-3">📏 측정 데이터 입력</h4>
+        <form id="measureForm">
+            <input type="hidden" id="rowId">
+            <div class="mb-2"><input type="text" id="현장" class="form-control" placeholder="현장명" required></div>
+            <div class="mb-2"><input type="text" id="구역" class="form-control" placeholder="구역"></div>
+            <div class="mb-2"><input type="text" id="도면번호" class="form-control" placeholder="도면번호"></div>
+            <div class="mb-2"><input type="text" id="항목" class="form-control" placeholder="항목 (예: 보, 기둥)"></div>
+            <div class="row g-2 mb-2">
+                <div class="col"><input type="number" id="x" class="form-control" placeholder="X (mm)"></div>
+                <div class="col"><input type="number" id="y" class="form-control" placeholder="Y (mm)"></div>
+                <div class="col"><input type="number" id="z" class="form-control" placeholder="Z (mm)"></div>
+            </div>
+            <div class="mb-2"><input type="text" id="단위" class="form-control" value="mm" readonly></div>
+            <div class="mb-3"><textarea id="메모" class="form-control" placeholder="메모"></textarea></div>
+            <button type="submit" class="btn btn-primary w-100 py-3">데이터 저장하기</button>
+        </form>
+    </div>
 
-<div class="card" id="pinCard">
-<div class="badge">PIN 설정</div>
-<input id="pinInput" inputmode="numeric" maxlength="4" placeholder="PIN 4자리 입력">
-<button onclick="savePin()">PIN 저장</button>
+    <div class="mt-4">
+        <h5>최근 입력 내역</h5>
+        <div id="historyList" class="bg-white p-3 rounded shadow-sm">데이터를 불러오는 중...</div>
+    </div>
 </div>
-
-<div class="card" id="formCard" style="display:none;">
-<div class="badge" id="modeBadge">신규 입력</div>
-
-<div class="row">
-<input id="site" placeholder="현장">
-<input id="area" placeholder="구역">
-</div>
-
-<div class="row">
-<input id="drawing" placeholder="도면번호">
-<input id="item" placeholder="항목">
-</div>
-
-<div class="row">
-<input id="value" inputmode="decimal" placeholder="측정값">
-<select id="unit">
-<option value="mm">mm</option>
-<option value="m">m</option>
-</select>
-</div>
-
-<textarea id="memo" rows="2" placeholder="메모 (선택)"></textarea>
-
-<div class="row">
-<button onclick="saveRecord()">저장</button>
-<button class="secondary" onclick="resetForm()">초기화</button>
-</div>
-
-<button class="secondary" onclick="loadList()" style="margin-top:8px">최근 입력 새로고침</button>
-<div id="queueInfo" style="margin-top:6px;font-size:13px;color:#555"></div>
-</div>
-
-<div class="card" id="listCard" style="display:none;">
-<div class="badge">최근 입력 (내 기기)</div>
-<div id="list"></div>
-</div>
-
-<div class="toast" id="toast"></div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbwOA5rCBA1nscQ63lZYVcfaXJLszBDEdw6toCAWGxKGmUazFFYcU54ZTDXX0_sKjdZM3Q/exec";
-const LS_PIN = "measure_pin";
-const LS_DEVICE = "measure_device";
-const LS_QUEUE = "measure_queue";
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzKNheqQ2GD-io-EfS-qzw-B616pqtdECC_KBBTPeOVBBZwN4kfZfpEW1tOqUiYShHWrg/exec';
+    const deviceId = localStorage.getItem('deviceId') || 'DEV-' + Math.random().toString(36).substr(2, 9);
+    if(!localStorage.getItem('deviceId')) localStorage.setItem('deviceId', deviceId);
 
-let editId = null;
+    // 데이터 저장
+    document.getElementById('measureForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            rowId: document.getElementById('rowId').value,
+            현장: document.getElementById('현장').value,
+            구역: document.getElementById('구역').value,
+            도면번호: document.getElementById('도면번호').value,
+            항목: document.getElementById('항목').value,
+            x: document.getElementById('x').value,
+            y: document.getElementById('y').value,
+            z: document.getElementById('z').value,
+            단위: document.getElementById('단위').value,
+            메모: document.getElementById('메모').value,
+            deviceId: deviceId
+        };
 
-function $(id){return document.getElementById(id)}
-function toast(msg){
-const t=$("toast");t.textContent=msg;t.classList.add("show");
-setTimeout(()=>t.classList.remove("show"),1500)
-}
+        if(!data.x && !data.y && !data.z) return alert("X, Y, Z 중 하나는 입력해야 합니다.");
 
-function getDevice(){
-let d=localStorage.getItem(LS_DEVICE);
-if(!d){d="dev_"+Date.now();localStorage.setItem(LS_DEVICE,d)}
-return d
-}
+        const btn = e.target.querySelector('button');
+        btn.disabled = true; btn.innerText = "저장 중...";
 
-function savePin(){
-const p=$("pinInput").value.trim();
-if(!/^\d{4}$/.test(p)){toast("PIN 4자리");return}
-localStorage.setItem(LS_PIN,p);
-init();
-}
+        await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
 
-function init(){
-if(localStorage.getItem(LS_PIN)){
-$("pinCard").style.display="none";
-$("formCard").style.display="block";
-$("listCard").style.display="block";
-loadList();
-}else{
-$("pinCard").style.display="block";
-}
-}
-init();
+        alert("저장 완료!");
+        location.reload();
+    });
 
-function normalize(){
-let v=parseFloat($("value").value);
-if(!v||v<=0)return null;
-return $("unit").value==="m"?Math.round(v*1000):Math.round(v)
-}
+    // 데이터 불러오기
+    async function loadData() {
+        const res = await fetch(API_URL);
+        const list = await res.json();
+        const container = document.getElementById('historyList');
+        container.innerHTML = '';
+        
+        list.slice(0, 10).forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.innerHTML = `
+                <strong>${item.항목 || '미지정'}</strong> (${item.x || 0}*${item.y || 0}*${item.z || 0})<br>
+                <small class="text-muted">${item.현장} - ${item.구역} | ${item.deviceId.substring(0,8)}</small>
+            `;
+            container.appendChild(div);
+        });
+    }
 
-async function saveRecord(){
-const pin=localStorage.getItem(LS_PIN);
-const mm=normalize();
-if(!mm){toast("값 확인");return}
-
-const payload={
-pin,
-action:editId?"update":"add",
-id:editId,
-site:$("site").value,
-area:$("area").value,
-drawing:$("drawing").value,
-item:$("item").value,
-value_mm:mm,
-unit:$("unit").value,
-memo:$("memo").value,
-device_id:getDevice()
-};
-
-try{
-const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-const r=await res.json();
-if(r.ok){
-toast(editId?"수정됨":"저장됨");
-resetForm();
-loadList();
-}else{saveOffline(payload)}
-}catch{saveOffline(payload)}
-}
-
-function saveOffline(data){
-let q=JSON.parse(localStorage.getItem(LS_QUEUE)||"[]");
-q.push(data);
-localStorage.setItem(LS_QUEUE,JSON.stringify(q));
-$("queueInfo").textContent="오프라인 저장 "+q.length+"건";
-toast("오프라인 저장됨");
-}
-
-function resetForm(){
-editId=null;
-$("modeBadge").textContent="신규 입력";
-["site","area","drawing","item","value","memo"].forEach(id=>$(id).value="");
-}
-
-async function loadList(){
-const pin=localStorage.getItem(LS_PIN);
-const dev=getDevice();
-const res=await fetch(API_URL+"?action=list&pin="+pin+"&device_id="+dev+"&limit=20");
-const r=await res.json();
-if(!r.ok)return;
-const list=$("list");
-list.innerHTML="";
-r.data.forEach(row=>{
-const div=document.createElement("div");
-div.className="list-item";
-div.innerHTML=`<b>${row.value_mm} mm</b><br>
-${row.site||""} ${row.area||""} ${row.item||""}`;
-div.onclick=()=>editRow(row);
-list.appendChild(div);
-});
-}
-
-function editRow(row){
-editId=row.id;
-$("modeBadge").textContent="수정 모드";
-$("site").value=row.site||"";
-$("area").value=row.area||"";
-$("drawing").value=row.drawing||"";
-$("item").value=row.item||"";
-$("value").value=row.unit==="m"?row.value_mm/1000:row.value_mm;
-$("unit").value=row.unit||"mm";
-$("memo").value=row.memo||"";
-window.scrollTo(0,0);
-}
-
+    loadData();
 </script>
 </body>
 </html>
