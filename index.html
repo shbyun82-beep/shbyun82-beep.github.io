@@ -3,52 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>현장 측정 데이터 입력 back </title>
+    <title>현장 측정 시스템 b1.0</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; padding-bottom: 50px; }
-        .container { max-width: 500px; }
-        .card { margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .history-item { font-size: 0.9rem; border-bottom: 1px solid #ddd; padding: 10px 0; }
+        body { background-color: #f1f3f5; padding-bottom: 30px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .container { max-width: 600px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .form-label { font-weight: 600; font-size: 0.9rem; color: #495057; }
+        .history-card { border-left: 5px solid #0d6efd; transition: transform 0.2s; }
+        .history-card:active { transform: scale(0.98); }
+        .loading-spinner { display: none; }
+        #editBadge { display: none; }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="card p-4">
-        <h4 class="mb-3">📏 측정 데이터 입력</h4>
+
+<div class="container py-4">
+    <div class="card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">📏 측정 데이터 입력</h5>
+            <span id="editBadge" class="badge bg-warning text-dark">수정 모드</span>
+        </div>
+        
         <form id="measureForm">
             <input type="hidden" id="rowId">
-            <div class="mb-2"><input type="text" id="현장" class="form-control" placeholder="현장명" required></div>
-            <div class="mb-2"><input type="text" id="구역" class="form-control" placeholder="구역"></div>
-            <div class="mb-2"><input type="text" id="도면번호" class="form-control" placeholder="도면번호"></div>
-            <div class="mb-2"><input type="text" id="항목" class="form-control" placeholder="항목 (예: 보, 기둥)"></div>
-            <div class="row g-2 mb-2">
-                <div class="col"><input type="number" id="x" class="form-control" placeholder="X (mm)"></div>
-                <div class="col"><input type="number" id="y" class="form-control" placeholder="Y (mm)"></div>
-                <div class="col"><input type="number" id="z" class="form-control" placeholder="Z (mm)"></div>
+            
+            <div class="row g-2 mb-3">
+                <div class="col-6">
+                    <label class="form-label">현장명</label>
+                    <input type="text" id="현장" class="form-control" placeholder="현장 이름" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label">구역</label>
+                    <input type="text" id="구역" class="form-control" placeholder="구역/층">
+                </div>
             </div>
-            <div class="mb-2"><input type="text" id="단위" class="form-control" value="mm" readonly></div>
-            <div class="mb-3"><textarea id="메모" class="form-control" placeholder="메모"></textarea></div>
-            <button type="submit" class="btn btn-primary w-100 py-3">데이터 저장하기</button>
+
+            <div class="row g-2 mb-3">
+                <div class="col-6">
+                    <label class="form-label">도면번호</label>
+                    <input type="text" id="도면번호" class="form-control" placeholder="도면 번호">
+                </div>
+                <div class="col-6">
+                    <label class="form-label">항목</label>
+                    <input type="text" id="항목" class="form-control" placeholder="보, 기둥 등">
+                </div>
+            </div>
+
+            <label class="form-label">측정값 (최소 하나 입력)</label>
+            <div class="row g-2 mb-3">
+                <div class="col-4"><input type="number" id="x" class="form-control" placeholder="X(mm)"></div>
+                <div class="col-4"><input type="number" id="y" class="form-control" placeholder="Y(mm)"></div>
+                <div class="col-4"><input type="number" id="z" class="form-control" placeholder="Z(mm)"></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">메모</label>
+                <textarea id="메모" class="form-control" rows="2" placeholder="참고사항"></textarea>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" id="submitBtn" class="btn btn-primary w-100 py-3 font-weight-bold">데이터 저장</button>
+                <button type="button" id="cancelBtn" class="btn btn-light" style="display:none;" onclick="resetForm()">취소</button>
+            </div>
         </form>
     </div>
 
-    <div class="mt-4">
-        <h5>최근 입력 내역</h5>
-        <div id="historyList" class="bg-white p-3 rounded shadow-sm">데이터를 불러오는 중...</div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">최근 입력 내역</h5>
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadData()">새로고침</button>
+    </div>
+
+    <div id="historyList">
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary loading-spinner" id="loader" role="status"></div>
+            <p id="statusMsg">데이터를 불러오는 중...</p>
+        </div>
     </div>
 </div>
 
 <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbw1M_lJH1W5sYW7z_H_7BWTbVP2-2H_5eIKkOh7fXnod8sGfC47Of71vrLL1zhuest1eQ/exec';
-    const deviceId = localStorage.getItem('deviceId') || 'DEV-' + Math.random().toString(36).substr(2, 9);
-    if(!localStorage.getItem('deviceId')) localStorage.setItem('deviceId', deviceId);
+    // 1. 자신의 Google Apps Script URL로 변경하세요.
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxjWYRKkRYsNlCy-4kdVB5h-IxIUkqUpHAOf3n8Pqw48EsIBl4ycCVkacdIOV8di3pD1g/exec';
+    
+    // 2. 기기 고유 ID 생성 (localStorage 저장)
+    let deviceId = localStorage.getItem('field_device_id');
+    if (!deviceId) {
+        deviceId = 'DEV-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        localStorage.setItem('field_device_id', deviceId);
+    }
 
-    // 데이터 저장
+    // 전역 데이터 보관용 (수정 시 참조)
+    let fetchedData = [];
+
+    // 데이터 불러오기 (Read)
+    async function loadData() {
+        const loader = document.getElementById('loader');
+        const statusMsg = document.getElementById('statusMsg');
+        const container = document.getElementById('historyList');
+        
+        loader.style.display = 'inline-block';
+        statusMsg.innerText = "불러오는 중...";
+
+        try {
+            const response = await fetch(API_URL);
+            const data = await response.json();
+            fetchedData = data; // 전역 변수에 저장
+
+            container.innerHTML = '';
+            if (data.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-4">기록된 데이터가 없습니다.</div>';
+            } else {
+                data.forEach((item, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'card p-3 mb-2 history-card';
+                    card.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div onclick="fillFormForEdit(${index})" style="cursor:pointer; flex-grow:1;">
+                                <div class="fw-bold text-primary">${item['항목'] || '미지정 항목'}</div>
+                                <div class="text-dark my-1">
+                                    <span class="badge bg-light text-dark border">${item['x'] || 0}</span> x 
+                                    <span class="badge bg-light text-dark border">${item['y'] || 0}</span> x 
+                                    <span class="badge bg-light text-dark border">${item['z'] || 0}</span> (mm)
+                                </div>
+                                <div style="font-size: 0.8rem; color: #6c757d;">
+                                    ${item['현장']} | ${item['구역']} | ${item['도면번호'] || '-'}
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="fillFormForEdit(${index})">수정</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+        } catch (error) {
+            console.error('Fetch Error:', error);
+            statusMsg.innerText = "데이터를 불러오지 못했습니다. URL을 확인하세요.";
+        } finally {
+            loader.style.display = 'none';
+            if(container.innerHTML === '') statusMsg.innerText = "";
+            else statusMsg.style.display = 'none';
+        }
+    }
+
+    // 수정 클릭 시 폼에 데이터 채우기
+    function fillFormForEdit(index) {
+        const item = fetchedData[index];
+        document.getElementById('rowId').value = item.rowId;
+        document.getElementById('현장').value = item['현장'];
+        document.getElementById('구역').value = item['구역'];
+        document.getElementById('도면번호').value = item['도면번호'];
+        document.getElementById('항목').value = item['항목'];
+        document.getElementById('x').value = item['x'];
+        document.getElementById('y').value = item['y'];
+        document.getElementById('z').value = item['z'];
+        document.getElementById('메모').value = item['메모'];
+        
+        document.getElementById('editBadge').style.display = 'block';
+        document.getElementById('cancelBtn').style.display = 'block';
+        document.getElementById('submitBtn').innerText = "내용 수정하기";
+        document.getElementById('submitBtn').className = "btn btn-warning w-100 py-3";
+        window.scrollTo(0, 0);
+    }
+
+    // 폼 초기화
+    function resetForm() {
+        document.getElementById('measureForm').reset();
+        document.getElementById('rowId').value = '';
+        document.getElementById('editBadge').style.display = 'none';
+        document.getElementById('cancelBtn').style.display = 'none';
+        document.getElementById('submitBtn').innerText = "데이터 저장";
+        document.getElementById('submitBtn').className = "btn btn-primary w-100 py-3";
+    }
+
+    // 데이터 저장 (Create / Update)
     document.getElementById('measureForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        const rowId = document.getElementById('rowId').value;
         const data = {
-            rowId: document.getElementById('rowId').value,
+            rowId: rowId,
             현장: document.getElementById('현장').value,
             구역: document.getElementById('구역').value,
             도면번호: document.getElementById('도면번호').value,
@@ -56,44 +190,38 @@
             x: document.getElementById('x').value,
             y: document.getElementById('y').value,
             z: document.getElementById('z').value,
-            단위: document.getElementById('단위').value,
+            단위: 'mm',
             메모: document.getElementById('메모').value,
             deviceId: deviceId
         };
 
-        if(!data.x && !data.y && !data.z) return alert("X, Y, Z 중 하나는 입력해야 합니다.");
+        if (!data.x && !data.y && !data.z) {
+            alert("X, Y, Z 길이 중 최소 하나는 입력해야 합니다.");
+            return;
+        }
 
-        const btn = e.target.querySelector('button');
-        btn.disabled = true; btn.innerText = "저장 중...";
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerText = "처리 중...";
 
-        await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-
-        alert("저장 완료!");
-        location.reload();
+        try {
+            await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            alert(rowId ? "수정되었습니다!" : "성공적으로 저장되었습니다!");
+            resetForm();
+            loadData();
+        } catch (error) {
+            alert("저장 중 오류가 발생했습니다.");
+            submitBtn.disabled = false;
+        }
     });
 
-    // 데이터 불러오기
-    async function loadData() {
-        const res = await fetch(API_URL);
-        const list = await res.json();
-        const container = document.getElementById('historyList');
-        container.innerHTML = '';
-        
-        list.slice(0, 10).forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'history-item';
-            div.innerHTML = `
-                <strong>${item.항목 || '미지정'}</strong> (${item.x || 0}*${item.y || 0}*${item.z || 0})<br>
-                <small class="text-muted">${item.현장} - ${item.구역} | ${item.deviceId.substring(0,8)}</small>
-            `;
-            container.appendChild(div);
-        });
-    }
-
-    loadData();
+    // 앱 시작 시 데이터 로드
+    window.onload = loadData;
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
