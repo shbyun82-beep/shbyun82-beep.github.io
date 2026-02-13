@@ -3,117 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>현장 측정 시스템 v2</title>
+    <title>현장 측정 데이터 입력 back </title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f4f7f6; padding-bottom: 50px; }
-        .card { border-radius: 15px; border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .history-card { border-left: 6px solid #0d6efd; margin-bottom: 12px; }
-        .val-badge { background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+        body { background-color: #f8f9fa; padding-bottom: 50px; }
+        .container { max-width: 500px; }
+        .card { margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .history-item { font-size: 0.9rem; border-bottom: 1px solid #ddd; padding: 10px 0; }
     </style>
 </head>
 <body>
-
-<div class="container py-4">
-    <div class="card p-4 mb-4">
-        <h5 id="formTitle">📏 데이터 입력</h5>
+<div class="container">
+    <div class="card p-4">
+        <h4 class="mb-3">📏 측정 데이터 입력</h4>
         <form id="measureForm">
             <input type="hidden" id="rowId">
+            <div class="mb-2"><input type="text" id="현장" class="form-control" placeholder="현장명" required></div>
+            <div class="mb-2"><input type="text" id="구역" class="form-control" placeholder="구역"></div>
+            <div class="mb-2"><input type="text" id="도면번호" class="form-control" placeholder="도면번호"></div>
+            <div class="mb-2"><input type="text" id="항목" class="form-control" placeholder="항목 (예: 보, 기둥)"></div>
             <div class="row g-2 mb-2">
-                <div class="col-6"><input type="text" id="현장" class="form-control" placeholder="현장" required></div>
-                <div class="col-6"><input type="text" id="구역" class="form-control" placeholder="구역"></div>
+                <div class="col"><input type="number" id="x" class="form-control" placeholder="X (mm)"></div>
+                <div class="col"><input type="number" id="y" class="form-control" placeholder="Y (mm)"></div>
+                <div class="col"><input type="number" id="z" class="form-control" placeholder="Z (mm)"></div>
             </div>
-            <div class="row g-2 mb-2">
-                <div class="col-6"><input type="text" id="도면번호" class="form-control" placeholder="도면번호"></div>
-                <div class="col-6"><input type="text" id="항목" class="form-control" placeholder="항목"></div>
-            </div>
-            <div class="row g-2 mb-3">
-                <div class="col-4"><input type="number" id="x" class="form-control" placeholder="X"></div>
-                <div class="col-4"><input type="number" id="y" class="form-control" placeholder="Y"></div>
-                <div class="col-4"><input type="number" id="z" class="form-control" placeholder="Z"></div>
-            </div>
-            <textarea id="메모" class="form-control mb-3" placeholder="메모"></textarea>
-            <button type="submit" id="submitBtn" class="btn btn-primary w-100 py-3">저장하기</button>
-            <button type="button" id="cancelBtn" class="btn btn-secondary w-100 mt-2" style="display:none;" onclick="resetForm()">수정 취소</button>
+            <div class="mb-2"><input type="text" id="단위" class="form-control" value="mm" readonly></div>
+            <div class="mb-3"><textarea id="메모" class="form-control" placeholder="메모"></textarea></div>
+            <button type="submit" class="btn btn-primary w-100 py-3">데이터 저장하기</button>
         </form>
     </div>
 
-    <h5 class="mb-3">측정 내역 <button onclick="loadData()" class="btn btn-sm btn-light">🔄</button></h5>
-    <div id="historyList"></div>
+    <div class="mt-4">
+        <h5>최근 입력 내역</h5>
+        <div id="historyList" class="bg-white p-3 rounded shadow-sm">데이터를 불러오는 중...</div>
+    </div>
 </div>
 
 <script>
-    const API_URL = '자신의_WEB_APP_URL';
-    let deviceId = localStorage.getItem('field_id') || 'DEV-' + Math.random().toString(36).substr(2, 5).toUpperCase();
-    localStorage.setItem('field_id', deviceId);
+    const API_URL = 'https://script.google.com/macros/s/AKfycbw1M_lJH1W5sYW7z_H_7BWTbVP2-2H_5eIKkOh7fXnod8sGfC47Of71vrLL1zhuest1eQ/exec';
+    const deviceId = localStorage.getItem('deviceId') || 'DEV-' + Math.random().toString(36).substr(2, 9);
+    if(!localStorage.getItem('deviceId')) localStorage.setItem('deviceId', deviceId);
 
-    let fetchedData = [];
-
-    async function loadData() {
-        const container = document.getElementById('historyList');
-        container.innerHTML = "불러오는 중...";
-        try {
-            const res = await fetch(API_URL);
-            fetchedData = await res.json();
-            container.innerHTML = "";
-            
-            fetchedData.forEach((item, idx) => {
-                const div = document.createElement('div');
-                div.className = 'card p-3 history-card';
-                // 시트 헤더가 'x' 이든 'x(mm)' 이든 찾아올 수 있도록 보정
-                const vx = item['x'] || item['x(mm)'] || 0;
-                const vy = item['y'] || item['y(mm)'] || 0;
-                const vz = item['z'] || item['z(mm)'] || 0;
-
-                div.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>${item['항목'] || '항목없음'}</strong> <span class="ms-2 val-badge">${vx} / ${vy} / ${vz}</span><br>
-                            <small class="text-muted">${item['현장']} | ${item['구역']}</small>
-                        </div>
-                        <div>
-                            <button class="btn btn-sm btn-outline-primary" onclick="editItem(${idx})">수정</button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.rowId})">삭제</button>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-        } catch (e) { container.innerHTML = "오류 발생"; }
-    }
-
-    async function deleteItem(rowId) {
-        if(!confirm("정말 삭제하시겠습니까?")) return;
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', rowId: rowId }) });
-        loadData();
-    }
-
-    function editItem(idx) {
-        const item = fetchedData[idx];
-        document.getElementById('rowId').value = item.rowId;
-        document.getElementById('현장').value = item['현장'];
-        document.getElementById('구역').value = item['구역'];
-        document.getElementById('도면번호').value = item['도면번호'];
-        document.getElementById('항목').value = item['항목'];
-        document.getElementById('x').value = item['x'] || item['x(mm)'];
-        document.getElementById('y').value = item['y'] || item['y(mm)'];
-        document.getElementById('z').value = item['z'] || item['z(mm)'];
-        document.getElementById('메모').value = item['메모'];
-        
-        document.getElementById('formTitle').innerText = "📝 데이터 수정 중";
-        document.getElementById('submitBtn').className = "btn btn-warning w-100 py-3";
-        document.getElementById('cancelBtn').style.display = "block";
-        window.scrollTo(0,0);
-    }
-
-    function resetForm() {
-        document.getElementById('measureForm').reset();
-        document.getElementById('rowId').value = "";
-        document.getElementById('formTitle').innerText = "📏 데이터 입력";
-        document.getElementById('submitBtn').className = "btn btn-primary w-100 py-3";
-        document.getElementById('cancelBtn').style.display = "none";
-    }
-
+    // 데이터 저장
     document.getElementById('measureForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = {
@@ -125,16 +56,44 @@
             x: document.getElementById('x').value,
             y: document.getElementById('y').value,
             z: document.getElementById('z').value,
-            단위: 'mm',
+            단위: document.getElementById('단위').value,
             메모: document.getElementById('메모').value,
             deviceId: deviceId
         };
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify(data) });
-        resetForm();
-        loadData();
+
+        if(!data.x && !data.y && !data.z) return alert("X, Y, Z 중 하나는 입력해야 합니다.");
+
+        const btn = e.target.querySelector('button');
+        btn.disabled = true; btn.innerText = "저장 중...";
+
+        await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+
+        alert("저장 완료!");
+        location.reload();
     });
 
-    window.onload = loadData;
+    // 데이터 불러오기
+    async function loadData() {
+        const res = await fetch(API_URL);
+        const list = await res.json();
+        const container = document.getElementById('historyList');
+        container.innerHTML = '';
+        
+        list.slice(0, 10).forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.innerHTML = `
+                <strong>${item.항목 || '미지정'}</strong> (${item.x || 0}*${item.y || 0}*${item.z || 0})<br>
+                <small class="text-muted">${item.현장} - ${item.구역} | ${item.deviceId.substring(0,8)}</small>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    loadData();
 </script>
 </body>
 </html>
